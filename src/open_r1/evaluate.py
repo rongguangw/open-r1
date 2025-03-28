@@ -25,6 +25,7 @@ from lighteval.metrics.dynamic_metrics import (
 from lighteval.tasks.lighteval_task import LightevalTaskConfig
 from lighteval.tasks.requests import Doc
 from lighteval.utils.language import Language
+from langcodes import standardize_tag
 
 
 # Prompt template adapted from
@@ -110,6 +111,14 @@ def gpqa_prompt_fn(line, task_name: str = None):
         instruction=query,
     )
 
+def mgsm_prompt_fn(line, task_name: str = None):
+    return Doc(
+        task_name=task_name,
+        query=MATH_QUERY_TEMPLATE.format(Question=line["question"]),
+        choices=[str(line["answer_number"])],
+        gold_index=0,
+    )
+
 
 # Define tasks
 aime24 = LightevalTaskConfig(
@@ -170,7 +179,37 @@ gpqa_diamond = LightevalTaskConfig(
     trust_dataset=True,
     version=1,
 )
-
+mgsm_tasks = [
+    LightevalTaskConfig(
+        name=f"mgsm:{language.value}",
+        suite=["custom"],
+        prompt_function=mgsm_prompt_fn,
+        hf_repo="juletxara/mgsm",
+        hf_subset=standardize_tag(language.value),
+        hf_avail_splits=["test"],
+        evaluation_splits=["test"],
+        few_shots_split=None,
+        few_shots_select=None,
+        generation_size=32768,  # needed for reasoning models like R1
+        metric=[expr_gold_metric], # expr_gold_metric, multilingual_quasi_exact_match_metric(language, "full")
+        stop_sequence=[],  # no stop sequence, will use eos token
+        trust_dataset=True,
+        version=1,
+    )
+    for language in [
+        Language.ENGLISH,
+        Language.SPANISH,
+        Language.FRENCH,
+        Language.GERMAN,
+        Language.RUSSIAN,
+        Language.CHINESE,
+        Language.JAPANESE,
+        Language.THAI,
+        Language.SWAHILI,
+        Language.BENGALI,
+        Language.TELUGU,
+    ]
+]
 
 # Add tasks to the table
 TASKS_TABLE = []
@@ -178,6 +217,7 @@ TASKS_TABLE.append(aime24)
 TASKS_TABLE.append(aime25)
 TASKS_TABLE.append(math_500)
 TASKS_TABLE.append(gpqa_diamond)
+TASKS_TABLE.extend(mgsm_tasks)
 
 # MODULE LOGIC
 if __name__ == "__main__":
